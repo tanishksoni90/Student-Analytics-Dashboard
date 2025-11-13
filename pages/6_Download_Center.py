@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import altair as alt
 import io
-from altair_saver import Saver
-from contextlib import redirect_stderr, redirect_stdout
 import os
 
 
