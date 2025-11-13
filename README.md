@@ -52,7 +52,7 @@ This is the main hub for generating and exporting custom reports.
 ## 🚀 How to Run
 
 ### 1. Prerequisites
-You must have Python 3.8+ installed.
+You must have Python 3.10 installed.
 
 ### 2. Installation
 1.  **Clone the repository:**
@@ -75,18 +75,20 @@ You must have Python 3.8+ installed.
 Make sure your file structure looks like this:
 ```
 student-dashboard/
-├── 1_Home.py
+├── app.py
 ├── pages/
-│   ├── 2_Main_Dashboard.py
-│   ├── 3_Student_Drilldown.py
-│   ├── 5_About_the_Dashboard.py
-│   ├── 6_Download_Center.py
+│   ├── 1_Student_Analytics.py
+│   ├── 2_Course_Analytics.py
+│   ├── 3_Branch_Analytics.py
+│   ├── 4_Predictive_Features.py
+│   ├── 5_About_This_Dashboard
+│   ├── 6_Download_Center
 ├── requirements.txt
 └── README.md
 ```
 Then, run the app from your terminal:
 ```bash
-streamlit run 1_Home.py
+streamlit run app.py
 ```
 Your app will open in your default web browser.
 
@@ -95,17 +97,22 @@ Your app will open in your default web browser.
 streamlit
 pandas
 altair
-vl-convert
+vl-convert-python[all]
 xlsxwriter
 ```
 
 ##  csv Data Format
 Your CSV file must contain the following columns for the app to work correctly. Other columns are fine, but these are essential.
 
+*   `User ID`
 *   `First Name`
 *   `Last Name`
-*   `Email`
-*   `Branch Name`
 *   `Registration Number`
+*   `Email`
+*   `Mobile Number`
+*   `Branch Name`
+*   `Year of Passing`
+*   `Courses Started`
+*   `Courses Completed`
 *   `Overall Completion %`
 *   ...and one column for each course, formatted as: `[Course Name] - Progress %`
