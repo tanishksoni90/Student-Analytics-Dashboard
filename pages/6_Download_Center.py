@@ -3,28 +3,32 @@ import pandas as pd
 import altair as alt
 import io
 import os
-
+import json
+from vl_convert import vegalite_to_png # Using your vl-convert solution
+from contextlib import redirect_stderr, redirect_stdout # To hide download warnings
 
 # ------------------------------------------------------------
 # Optimized, Fast, Warning-Free Altair → PNG Exporter
 # ------------------------------------------------------------
 def save_chart_to_png(chart):
     """
-    Save Altair chart as PNG using vl-convert (correct functions for your version).
+    Save Altair chart as PNG using vl-convert, hiding all terminal output.
     """
-    import json
-    from vl_convert import vegalite_to_png
-
+    # Create dummy I/O streams to catch stdout and stderr
+    f_out = io.StringIO()
+    f_err = io.StringIO()
+    
     try:
-        spec = json.loads(chart.to_json())
-
-        # Convert Vega-Lite spec to PNG bytes
-        png_bytes = vegalite_to_png(spec)
-
-        return png_bytes
-
+        # Redirect both stdout and stderr to the dummy streams
+        with redirect_stdout(f_out), redirect_stderr(f_err):
+            # This is the line that prints the unwanted warning
+            png_data = vegalite_to_png(json.loads(chart.to_json()))
+        
+        # We've captured the warning, but we don't display it.
+        return png_data
     except Exception as e:
-        st.error(f"PNG export failed: {e}")
+        # This except block is now just for *real* crashes
+        st.error(f"Error saving chart: {e}.")
         return None
 
 
@@ -181,7 +185,8 @@ def to_excel(dfs_dict):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         for sheet_name, df in dfs_dict.items():
             df.to_excel(writer, sheet_name=sheet_name)
-    return output.getvalue()
+    processed_data = output.getvalue()
+    return processed_data
 
 # ------------------------------------------------------------
 # Main Streamlit App Logic
@@ -198,25 +203,46 @@ else:
     top_k_courses = get_top_k_courses(df, course_columns, k)
     st.info(f"The Top {k} Courses are: **{', '.join(top_k_courses)}**")
     st.write("---")
-
-    # --- 2. Master Student Report ---
-    st.subheader("2. Master Student Report")
+    
+    # --- 2. Generate ALL Reports (Master + Summary) ---
+    st.subheader("2. Download Full Report")
+    st.write(f"This single .xlsx file contains the master student list and all summary tables for the Top {k} courses.")
+    
+    # --- NEW: Generate all tables first ---
     master_report_df = create_master_report(df, top_k_courses)
-    st.dataframe(master_report_df.head())
-    excel_master_report = to_excel({"Master Report": master_report_df})
+    # We call this here to use for the download button
+    started_summary, completed_summary, top_k_tables = create_summary_tables(df, top_k_courses)
 
+    # --- NEW: Create a single dictionary with ALL sheets ---
+    excel_sheets_full_report = {
+        "Master Student Report": master_report_df,
+        "Course Started Summary": started_summary,
+        "Course Completed Summary": completed_summary
+    }
+    # Add each Top K table as its own sheet
+    for course_name, table in top_k_tables.items():
+        # Clean sheet name (Excel has a 31 char limit)
+        sheet_name = course_name.replace(' ', '_')[:31]
+        excel_sheets_full_report[sheet_name] = table
+    
+    # Convert the combined dictionary to an Excel file in memory
+    full_excel_report = to_excel(excel_sheets_full_report)
+    
+    # --- NEW: This is now the main download button for ALL data ---
     st.download_button(
-        label="📥 Download Master Student Report (.xlsx)",
-        data=excel_master_report,
-        file_name=f"Master_Student_Report_Top_{k}.xlsx",
+        label="📥 Download Full Report (All Sheets) (.xlsx)",
+        data=full_excel_report,
+        file_name=f"Full_Student_Report_Top_{k}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     st.write("---")
 
-    # --- 3. Summary Reports & Graphs ---
-    st.subheader("3. Summary Reports & Graphs")
-    started_summary, completed_summary, top_k_tables = create_summary_tables(df, top_k_courses)
 
+    # --- 3. Interactive Graphs (for on-screen viewing) ---
+    st.subheader("3. Interactive Graphs & Summary Tables")
+    st.write("These are the interactive versions of the tables included in your download.")
+
+    # We re-use the tables we already generated
     tab1, tab2, tab3 = st.tabs(["**Course Started**", "**Course Completed**", f"**Top {k} Courses Breakdown**"])
 
     # ---------------------------------------------
@@ -270,7 +296,7 @@ else:
         ).interactive()
 
         st.altair_chart(chart_completed, use_container_width=True)
-
+        
         png_data = save_chart_to_png(chart_completed)
         if png_data:
             st.download_button(
@@ -307,7 +333,7 @@ else:
             ).interactive()
 
             st.altair_chart(chart_top_k, use_container_width=True)
-
+            
             png_data = save_chart_to_png(chart_top_k)
             if png_data:
                 st.download_button(
@@ -321,19 +347,20 @@ else:
             st.write(f"#### Data Table: {selected_course}")
             st.dataframe(course_table)
 
-    # ---------------------------------------------
-    # DOWNLOAD ALL SUMMARY TABLES
-    # ---------------------------------------------
-    excel_sheets = {
+    # --- This is the SECOND download button, as requested ---
+    # --- It ONLY contains the summary tables ---
+    st.write("---")
+    st.subheader("4. Download Summary Tables Only")
+    
+    excel_sheets_summary = {
         "Course Started Summary": started_summary,
         "Course Completed Summary": completed_summary
     }
-
     for course_name, table in top_k_tables.items():
         sheet_name = course_name.replace(' ', '_')[:31]
-        excel_sheets[sheet_name] = table
-
-    excel_summary_report = to_excel(excel_sheets)
+        excel_sheets_summary[sheet_name] = table
+    
+    excel_summary_report = to_excel(excel_sheets_summary)
 
     st.download_button(
         label="📥 Download All Summary Tables (.xlsx)",
