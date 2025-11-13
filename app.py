@@ -3,12 +3,12 @@ import pandas as pd
 
 st.set_page_config(
     page_title="Career247 Analytics Dashboard",
-    page_icon="🚀",
+    page_icon="🚀", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-@st.cache_data
+@st.cache_data(show_spinner="Loading and cleaning data...")
 def load_data(uploaded_file):
     """Loads data from the uploaded CSV file with robust encoding."""
     try:
@@ -29,18 +29,18 @@ def load_data(uploaded_file):
         return None
 
 with st.sidebar:
-    st.title("🚀 Analytics Dashboard")
+    st.title("🚀 Career247 Analytics")
     st.write("---")
     
     uploaded_file = st.file_uploader(
-        "Upload your course spreadsheet (CSV)", 
+        "Upload Course Spreadsheet (CSV)", 
         type="csv",
-        key="main_uploader"
+        key="main_uploader",
+        help="Upload the 'course spreadsheet.csv' file to power the dashboard."
     )
 
     if uploaded_file is not None:
         df = load_data(uploaded_file)
-        
         if df is not None:
             st.session_state["df"] = df
             st.session_state["course_columns"] = df.columns[11:].tolist()
@@ -49,18 +49,27 @@ with st.sidebar:
     st.write("---")
     st.info("Navigate to a page to begin your analysis.")
 
-st.title("Welcome to the Student Analytics Dashboard")
+st.title("🏠 Welcome to the Student Analytics Dashboard")
 st.header("Your central hub for data-driven insights.")
 
 if "df" not in st.session_state:
     st.warning("Please upload a CSV file using the sidebar to get started.")
 else:
     st.success("Data loaded successfully! Please select an analysis page from the sidebar.")
-    
-    st.subheader("Dashboard Features:")
-    st.markdown("""
-    * **1_Student_Analytics:** Search for individual students and view their complete portfolio and course recommendations.
-    * **2_Course_Analytics:** Get a deep dive into course performance, including enrollment, completion rates, and popularity.
-    * **3_Branch_Analytics:** Compare performance across different branches and academic years.
-    * **4_Predictive_Features:** Identify at-risk students and use the recommendation engine.
-    """)
+
+st.write("")
+st.subheader("How to Use This Dashboard")
+st.markdown("""
+1.  **Upload Your File:** Use the file uploader in the sidebar to load your course spreadsheet.
+2.  **Navigate Pages:** The sidebar on the left lists all available analysis pages. The file you upload will power all of them.
+3.  **Explore Features:** Each page has multiple tabs and filters to help you find the insights you need.
+""")
+
+st.subheader("Dashboard Pages")
+st.markdown("""
+* **Student Analytics:** Find individual students, see their progress, and get course recommendations.
+* **Course Analytics:** Analyze course popularity, completion rates, and which courses are taken together.
+* **Branch Analytics:** Compare branches and academic years to see high-level performance trends.
+* **Predictive Features:** Identify at-risk students and find "gaps" in a student's course plan.
+* **About This Dashboard:** A full guide to all features and their logic (the page you requested!).
+""")
