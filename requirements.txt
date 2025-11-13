@@ -1,8 +1,6 @@
 streamlit
 pandas
 altair
-google-generativeai
+vl-convert-python[all]
 xlsxwriter
-altair_saver
-selenium
-webdriver-manager
+google-generativeai
