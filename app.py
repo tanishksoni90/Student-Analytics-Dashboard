@@ -1,19 +1,23 @@
 import streamlit as st
 import pandas as pd
 
+# Set page config for the entire app. This must be the first Streamlit command.
 st.set_page_config(
     page_title="Career247 Analytics Dashboard",
-    page_icon="🚀", 
+    page_icon="🚀",  # This icon will still appear in the browser tab
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# --- Caching Function ---
 @st.cache_data(show_spinner="Loading and cleaning data...")
 def load_data(uploaded_file):
     """Loads data from the uploaded CSV file with robust encoding."""
     try:
+        # Use 'latin1' encoding
         df = pd.read_csv(uploaded_file, encoding='latin1')
         
+        # --- Data Cleaning ---
         df['Courses Started'] = pd.to_numeric(df['Courses Started'], errors='coerce')
         df['Overall Completion %'] = pd.to_numeric(df['Overall Completion %'], errors='coerce')
         df['Courses Completed'] = pd.to_numeric(df['Courses Completed'], errors='coerce')
@@ -28,6 +32,8 @@ def load_data(uploaded_file):
         st.error(f"Error loading or cleaning file: {e}")
         return None
 
+# --- Sidebar ---
+# This section is the "control panel"
 with st.sidebar:
     st.title("🚀 Career247 Analytics")
     st.write("---")
@@ -39,6 +45,7 @@ with st.sidebar:
         help="Upload the 'course spreadsheet.csv' file to power the dashboard."
     )
 
+    # Load data and store it in session state
     if uploaded_file is not None:
         df = load_data(uploaded_file)
         if df is not None:
@@ -48,6 +55,23 @@ with st.sidebar:
             
     st.write("---")
     st.info("Navigate to a page to begin your analysis.")
+
+# --- Main Page UI ---
+
+# --- NEW: TOP-CENTER LOGO ---
+# 1. Create columns for centering. [2,3,2] gives a wide center column.
+#    You can adjust these ratios (e.g., [1,2,1]) to make the logo smaller or larger.
+col1, col2, col3 = st.columns([2, 3, 2])
+
+with col2:
+    try:
+        # 2. Display the logo from the file "logo.png"
+        st.image("logo.png")
+    except Exception:
+        # 3. A fallback in case the image isn't found
+        st.write("*(Company Logo)*") 
+# --- END OF LOGO CODE ---
+
 
 st.title("🏠 Welcome to the Student Analytics Dashboard")
 st.header("Your central hub for data-driven insights.")
@@ -71,5 +95,5 @@ st.markdown("""
 * **Course Analytics:** Analyze course popularity, completion rates, and which courses are taken together.
 * **Branch Analytics:** Compare branches and academic years to see high-level performance trends.
 * **Predictive Features:** Identify at-risk students and find "gaps" in a student's course plan.
-* **About This Dashboard:** A full guide to all features and their logic (the page you requested!).
+* **About This Dashboard:** A full guide to all features and their logic.
 """)
