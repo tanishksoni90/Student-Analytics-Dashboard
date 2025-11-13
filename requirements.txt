@@ -2,3 +2,7 @@ streamlit
 pandas
 altair
 google-generativeai
+xlsxwriter
+altair_saver
+selenium
+webdriver-manager
