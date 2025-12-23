@@ -1,6 +1,9 @@
 streamlit
 pandas
-altair
-vl-convert-python[all]
+plotly
+numpy
+openpyxl
 xlsxwriter
-google-generativeai
+altair
+reportlab
+kaleido

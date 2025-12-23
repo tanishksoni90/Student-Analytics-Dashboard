@@ -4,3 +4,28 @@ venv/
 # Python cache
 __pycache__/
 *.pyc
+*.pyo
+
+# Sample data files (keep in repo for testing, remove if sensitive)
+# *.csv
+# *.xlsx
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Test outputs
+Test Report.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Backup folders (if any remain)
+pages_backup/
+pages_backup_course/
+assessment_pages/
+assessment_standalone_pages/
