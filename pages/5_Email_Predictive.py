@@ -16,7 +16,7 @@ if data_mode is None:
 # ============================================
 # PDF REPORT GENERATION
 # ============================================
-def generate_student_pdf_report(student_data, df, score_columns, logo_path=None):
+def generate_student_pdf_report(student_data, df, score_columns, logo_path="logo.png"):
     """Generate a professional PDF report for a student."""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib import colors
@@ -24,6 +24,7 @@ def generate_student_pdf_report(student_data, df, score_columns, logo_path=None)
     from reportlab.lib.units import inch, cm
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
     from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+    import os
     
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
@@ -44,8 +45,29 @@ def generate_student_pdf_report(student_data, df, score_columns, logo_path=None)
         'CustomNormal', parent=styles['Normal'], fontSize=11, spaceAfter=6
     )
     
-    # Title
-    story.append(Paragraph("Student Assessment Report", title_style))
+    # Header with Logo
+    try:
+        if logo_path and os.path.exists(logo_path):
+            logo = Image(logo_path, width=1.2*inch, height=0.6*inch)
+            logo.hAlign = 'RIGHT'
+            
+            # Create header table with title on left and logo on right
+            header_title = Paragraph("Student Assessment Report", title_style)
+            header_table = Table(
+                [[header_title, logo]],
+                colWidths=[5.5*inch, 1.5*inch]
+            )
+            header_table.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ]))
+            story.append(header_table)
+        else:
+            story.append(Paragraph("Student Assessment Report", title_style))
+    except Exception:
+        story.append(Paragraph("Student Assessment Report", title_style))
+    
     story.append(Spacer(1, 10))
     
     # Student Info Box
@@ -100,7 +122,7 @@ def generate_student_pdf_report(student_data, df, score_columns, logo_path=None)
          f"{rank} of {len(df)}", status]
     ]
     
-    perf_table = Table(perf_data, colWidths=[1.7*inch, 1.7*inch, 1.7*inch, 1.7*inch])
+    perf_table = Table(perf_data, colWidths=[1.5*inch, 1.5*inch, 1.4*inch, 2.4*inch])
     perf_table.setStyle(TableStyle([
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, 0), 11),
@@ -133,66 +155,53 @@ def generate_student_pdf_report(student_data, df, score_columns, logo_path=None)
         student_pcts.append((student_data[col_name] / max_val) * 100)
         class_avgs.append((df[col_name].mean() / max_val) * 100)
     
-    # Create the bar chart using plotly
-    fig = go.Figure()
-    
-    # Add student bars
-    fig.add_trace(go.Bar(
-        name=student_name,
-        x=sections,
-        y=student_pcts,
-        marker_color='#3498db',
-        text=[f'{p:.1f}%' for p in student_pcts],
-        textposition='outside',
-        textfont=dict(size=12, color='#2c3e50')
-    ))
-    
-    # Add class average bars
-    fig.add_trace(go.Bar(
-        name='Class Average',
-        x=sections,
-        y=class_avgs,
-        marker_color='#95a5a6',
-        text=[f'{p:.1f}%' for p in class_avgs],
-        textposition='outside',
-        textfont=dict(size=12, color='#7f8c8d')
-    ))
-    
-    fig.update_layout(
-        title=dict(
-            text='Your Performance vs Class Average',
-            font=dict(size=16, color='#2c3e50'),
-            x=0.5
-        ),
-        barmode='group',
-        yaxis=dict(
-            title='Percentage (%)',
-            range=[0, 110],
-            gridcolor='#ecf0f1'
-        ),
-        xaxis=dict(title=''),
-        legend=dict(
-            orientation='h',
-            yanchor='bottom',
-            y=1.02,
-            xanchor='center',
-            x=0.5
-        ),
-        plot_bgcolor='white',
-        height=350,
-        width=550,
-        margin=dict(t=80, b=40, l=50, r=30)
-    )
-    
-    # Convert chart to image and add to PDF
+    # Create the bar chart using matplotlib (more reliable for PDF export)
     try:
-        chart_bytes = fig.to_image(format='png', scale=2)
-        chart_buffer = io.BytesIO(chart_bytes)
+        import matplotlib
+        matplotlib.use('Agg')  # Use non-interactive backend
+        import matplotlib.pyplot as plt
+        import numpy as np
+        
+        fig_chart, ax = plt.subplots(figsize=(7, 4))
+        
+        x = np.arange(len(sections))
+        width = 0.35
+        
+        bars1 = ax.bar(x - width/2, student_pcts, width, label=student_name, color='#3498db')
+        bars2 = ax.bar(x + width/2, class_avgs, width, label='Class Average', color='#95a5a6')
+        
+        # Add value labels on bars
+        for bar, pct in zip(bars1, student_pcts):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2, 
+                   f'{pct:.1f}%', ha='center', va='bottom', fontsize=9, color='#2c3e50')
+        for bar, pct in zip(bars2, class_avgs):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2,
+                   f'{pct:.1f}%', ha='center', va='bottom', fontsize=9, color='#7f8c8d')
+        
+        ax.set_ylabel('Percentage (%)')
+        ax.set_title('Your Performance vs Class Average', fontsize=14, color='#2c3e50', pad=20)
+        ax.set_xticks(x)
+        ax.set_xticklabels(sections)
+        ax.set_ylim(0, 110)
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=2)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.grid(axis='y', alpha=0.3)
+        
+        plt.tight_layout()
+        
+        # Save to bytes
+        chart_buffer = io.BytesIO()
+        fig_chart.savefig(chart_buffer, format='png', dpi=150, bbox_inches='tight', 
+                         facecolor='white', edgecolor='none')
+        chart_buffer.seek(0)
+        plt.close(fig_chart)
+        
         chart_img = Image(chart_buffer, width=5.5*inch, height=3.2*inch)
         story.append(chart_img)
     except Exception as e:
         # If chart generation fails, add a note
-        story.append(Paragraph(f"<i>(Chart could not be generated)</i>", normal_style))
+        story.append(Paragraph(f"<i>(Chart could not be generated: {str(e)[:50]})</i>", normal_style))
     
     story.append(Spacer(1, 15))
     

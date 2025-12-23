@@ -6,4 +6,4 @@ openpyxl
 xlsxwriter
 altair
 reportlab
-kaleido
+matplotlib
