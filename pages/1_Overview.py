@@ -186,12 +186,12 @@ elif data_mode == "course":
     with col3:
         if 'Courses Started' in df.columns:
             started = len(df[df['Courses Started'] > 0])
-            st.metric("Started Courses", f"{started}", f"{(started/len(df)*100):.1f}%")
+            st.metric("Students Started", f"{started}", f"{(started/len(df)*100):.1f}%")
     
     with col4:
-        if 'Overall Completion %' in df.columns:
-            completed = len(df[df['Overall Completion %'] == 100])
-            st.metric("Fully Completed", f"{completed}", f"{(completed/len(df)*100):.1f}%")
+        if 'Courses Completed' in df.columns:
+            completed = len(df[df['Courses Completed'] > 0])
+            st.metric("Students Completed", f"{completed}", f"{(completed/len(df)*100):.1f}%")
     
     st.write("---")
     
@@ -202,7 +202,7 @@ elif data_mode == "course":
         col1, col2 = st.columns(2)
         
         with col1:
-            st.write("**Course Started Status by Branch**")
+            st.write("**Course Started Status by Branch (≥10%)**")
             df['Started_Status'] = df['Courses Started'].apply(lambda x: 'Started' if x > 0 else 'Not Started')
             started_by_branch = df.groupby(['Branch Name', 'Started_Status']).size().reset_index(name='Count')
             
@@ -215,9 +215,9 @@ elif data_mode == "course":
             st.altair_chart(chart, use_container_width=True)
         
         with col2:
-            st.write("**Course Completed Status by Branch**")
-            if 'Overall Completion %' in df.columns:
-                df['Completed_Status'] = df['Overall Completion %'].apply(lambda x: 'Completed' if x == 100 else 'Not Completed')
+            st.write("**Course Completed Status by Branch (≥90%)**")
+            if 'Courses Completed' in df.columns:
+                df['Completed_Status'] = df['Courses Completed'].apply(lambda x: 'Completed' if x > 0 else 'Not Completed')
                 completed_by_branch = df.groupby(['Branch Name', 'Completed_Status']).size().reset_index(name='Count')
                 
                 chart = alt.Chart(completed_by_branch).mark_bar().encode(
@@ -241,14 +241,14 @@ elif data_mode == "course":
     
     st.write("---")
     
-    # Top Enrolled Courses
-    st.subheader("📚 Top 10 Enrolled Courses")
+    # Top Enrolled Courses (>=10% considered as started/enrolled)
+    st.subheader("📚 Top 10 Enrolled Courses (≥10%)")
     
     if course_columns:
-        enrollment = (df[course_columns] > 0).sum().sort_values(ascending=False).head(10)
+        enrollment = (df[course_columns] >= 10).sum().sort_values(ascending=False).head(10)
         
         fig = px.bar(x=enrollment.index, y=enrollment.values,
                     labels={'x': 'Course', 'y': 'Students Enrolled'},
-                    title="Top 10 Courses by Enrollment")
+                    title="Top 10 Courses by Enrollment (≥10%)")
         fig.update_layout(xaxis_tickangle=-45, height=400)
         st.plotly_chart(fig, use_container_width=True)

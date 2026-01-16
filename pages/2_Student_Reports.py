@@ -253,10 +253,23 @@ elif data_mode == "course":
         if selected_reg_num:
             student_data = df[df['Registration Number'] == selected_reg_num].iloc[0]
             
+            # Get student name - handle different column formats
+            if 'First Name' in df.columns and 'Last Name' in df.columns:
+                student_name = f"{student_data.get('First Name', '')} {student_data.get('Last Name', '')}"
+            elif 'Full Name' in df.columns:
+                student_name = student_data.get('Full Name', 'N/A')
+            else:
+                # Find any name-like column
+                student_name = 'N/A'
+                for col in df.columns:
+                    if 'name' in col.lower() and col.lower() not in ['branch name']:
+                        student_name = student_data.get(col, 'N/A')
+                        break
+            
             col1, col2, col3 = st.columns(3)
-            col1.metric("Student Name", f"{student_data.get('First Name', '')} {student_data.get('Last Name', '')}")
+            col1.metric("Student Name", student_name)
             col2.metric("Branch", f"{student_data.get('Branch Name', 'N/A')}")
-            col3.metric("Year of Passing", f"{int(student_data.get('Year of Passing', 0))}")
+            col3.metric("Year of Passing", f"{int(student_data.get('Year of Passing', 0)) if pd.notna(student_data.get('Year of Passing')) else 'N/A'}")
             
             st.subheader("Overall Progress")
             col1, col2, col3 = st.columns(3)
@@ -271,13 +284,14 @@ elif data_mode == "course":
             
             if course_columns:
                 student_courses = student_data[course_columns]
-                courses_started = student_courses[student_courses > 0]
+                courses_started = student_courses[student_courses >= 10]  # >=10% considered as started
                 
                 if courses_started.empty:
-                    st.info("This student has not started any courses yet.")
+                    st.info("This student has not started any courses yet (≥10%).")
                 else:
                     courses_df = courses_started.reset_index()
                     courses_df.columns = ["Course Name", "Completion %"]
+                    courses_df['Status'] = courses_df['Completion %'].apply(lambda x: 'Completed' if x >= 90 else 'In Progress')
                     courses_df = courses_df.sort_values(by="Completion %", ascending=False)
                     st.dataframe(courses_df, use_container_width=True)
             
@@ -285,11 +299,11 @@ elif data_mode == "course":
             
             if 'Branch Name' in df.columns and course_columns:
                 branch_df = df[df['Branch Name'] == student_data['Branch Name']]
-                branch_course_counts = (branch_df[course_columns] > 0).sum().sort_values(ascending=False)
+                branch_course_counts = (branch_df[course_columns] >= 10).sum().sort_values(ascending=False)  # >=10% as started
                 top_10_branch_courses = branch_course_counts.head(10).index
                 
                 student_courses = student_data[course_columns]
-                courses_not_started = student_courses[student_courses == 0].index
+                courses_not_started = student_courses[student_courses < 10].index  # <10% as not started
                 
                 recommendations = list(set(top_10_branch_courses) & set(courses_not_started))
                 
@@ -326,8 +340,19 @@ elif data_mode == "course":
         if 'Overall Completion %' in filtered_df.columns:
             leaderboard = filtered_df.sort_values(by="Overall Completion %", ascending=False)
             
-            display_cols = ['First Name', 'Last Name', 'Registration Number', 
-                           'Branch Name', 'Overall Completion %', 'Courses Completed']
-            display_cols = [c for c in display_cols if c in leaderboard.columns]
-            
-            st.dataframe(leaderboard[display_cols].head(top_n), use_container_width=True)
+        # Build display columns dynamically
+        display_cols = []
+        # Add name column - check what exists
+        if 'First Name' in filtered_df.columns:
+            display_cols.extend(['First Name', 'Last Name'])
+        elif 'Full Name' in filtered_df.columns:
+            display_cols.append('Full Name')
+        
+        # Add other standard columns if they exist
+        for col in ['Registration Number', 'Branch Name', 'Overall Completion %', 'Courses Completed']:
+            if col in filtered_df.columns:
+                display_cols.append(col)
+        
+        display_cols = [c for c in display_cols if c in leaderboard.columns]
+        
+        st.dataframe(leaderboard[display_cols].head(top_n), use_container_width=True)

@@ -158,7 +158,7 @@ elif data_mode == "course":
         
         for branch in branches:
             branch_df = _df[_df['Branch Name'] == branch]
-            branch_enrollment = (branch_df[_course_columns] > 0).sum().sort_values(ascending=False)
+            branch_enrollment = (branch_df[_course_columns] >= 10).sum().sort_values(ascending=False)  # >=10% as enrolled
             
             top_10 = branch_enrollment.head(10).reset_index()
             top_10.columns = ['Course Name', 'Student Count']

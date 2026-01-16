@@ -304,19 +304,38 @@ elif data_mode == "course":
     
     @st.cache_data
     def get_top_k_courses(_df, _course_columns, k):
-        enrollment = (_df[_course_columns] > 0).sum()
+        enrollment = (_df[_course_columns] >= 10).sum()  # >=10% as enrolled
         return enrollment.nlargest(k).index.tolist()
     
     @st.cache_data
     def create_master_report(_df, top_k_courses):
         df_report = _df.copy()
-        df_report['First Name'] = df_report['First Name'].fillna('')
-        df_report['Last Name'] = df_report['Last Name'].fillna('')
-        df_report['Full Name'] = df_report['First Name'] + ' ' + df_report['Last Name']
+        
+        # Handle name columns - check what exists
+        if 'First Name' in df_report.columns and 'Last Name' in df_report.columns:
+            df_report['First Name'] = df_report['First Name'].fillna('')
+            df_report['Last Name'] = df_report['Last Name'].fillna('')
+            df_report['Full Name'] = df_report['First Name'] + ' ' + df_report['Last Name']
+        elif 'Full Name' in df_report.columns:
+            df_report['Full Name'] = df_report['Full Name'].fillna('')
+        else:
+            # Try to find any name-like column
+            for col in df_report.columns:
+                if 'name' in col.lower() and col.lower() not in ['branch name']:
+                    df_report['Full Name'] = df_report[col].fillna('')
+                    break
+            else:
+                df_report['Full Name'] = 'N/A'
+        
         df_report['S No.'] = range(1, len(df_report) + 1)
         
-        base_cols = ['S No.', 'Full Name', 'Email', 'Branch Name', 'Registration Number',
-                    'Courses Started', 'Courses Completed']
+        # Build base columns dynamically
+        base_cols = ['S No.', 'Full Name']
+        optional_cols = ['Email', 'Branch Name', 'Registration Number', 'Courses Started', 'Courses Completed']
+        for col in optional_cols:
+            if col in df_report.columns:
+                base_cols.append(col)
+        
         valid_top_k = [col for col in top_k_courses if col in df_report.columns]
         
         return df_report[[c for c in base_cols + valid_top_k if c in df_report.columns]]
@@ -325,7 +344,12 @@ elif data_mode == "course":
     def create_summary_tables(_df, top_k_courses):
         _df = _df.copy()
         
-        # Course Started Summary with proper column names
+        # Check if Branch Name exists
+        if 'Branch Name' not in _df.columns:
+            # Return empty dataframes if no branch column
+            return pd.DataFrame({'Note': ['Branch Name column not found']}), pd.DataFrame({'Note': ['Branch Name column not found']})
+        
+        # Course Started Summary: >=10% as started, <10% as not started
         _df['Started Status'] = _df['Courses Started'].apply(lambda x: 'Course Started' if x > 0 else 'Course Not Started')
         started_summary = pd.pivot_table(_df, index='Branch Name', columns='Started Status',
                                          aggfunc='size', fill_value=0).reset_index()
@@ -337,8 +361,8 @@ elif data_mode == "course":
         numeric_cols = started_summary.select_dtypes(include='number').columns.tolist()
         started_summary['Grand Total'] = started_summary[numeric_cols].sum(axis=1)
         
-        # Course Completed Summary with proper column names
-        _df['Completed Status'] = _df['Overall Completion %'].apply(lambda x: 'Course Completed' if x == 100 else 'Course Not Completed')
+        # Course Completed Summary: >=90% as completed (using recalculated Courses Completed)
+        _df['Completed Status'] = _df['Courses Completed'].apply(lambda x: 'Course Completed' if x > 0 else 'Course Not Completed')
         completed_summary = pd.pivot_table(_df, index='Branch Name', columns='Completed Status',
                                            aggfunc='size', fill_value=0).reset_index()
         # Add Grand Total row
@@ -353,45 +377,31 @@ elif data_mode == "course":
     
     @st.cache_data
     def create_course_breakdown(_df, course_col):
-        """Create branch-wise breakdown by completion percentage buckets for a course"""
+        """Create branch-wise breakdown with simplified status: Not Started (<10%), Started (10-89%), Completed (>=90%)"""
         _df = _df.copy()
         
-        def get_completion_bucket(val):
-            if pd.isna(val) or val == 0:
-                return 'Not Started'
-            elif val == 100:
-                return 'Completed'
-            elif val >= 80:
-                return '80% Completed'
-            elif val >= 70:
-                return '70% Completed'
-            elif val >= 60:
-                return '60% Completed'
-            elif val >= 50:
-                return '50% Completed'
-            elif val >= 40:
-                return '40% Completed'
-            elif val >= 30:
-                return '30% Completed'
-            elif val >= 20:
-                return '20% Completed'
-            elif val >= 10:
-                return '10% Completed'
-            else:
-                return 'Not Started'
+        # Check if Branch Name exists
+        if 'Branch Name' not in _df.columns:
+            return pd.DataFrame({'Note': ['Branch Name column not found']})
         
-        _df['Completion Bucket'] = _df[course_col].apply(get_completion_bucket)
+        def get_completion_status(val):
+            if pd.isna(val) or val < 10:
+                return 'Not Started'
+            elif val >= 90:
+                return 'Completed'
+            else:
+                return 'Started'
+        
+        _df['Completion Status'] = _df[course_col].apply(get_completion_status)
         
         # Create pivot table
-        breakdown = pd.pivot_table(_df, index='Branch Name', columns='Completion Bucket',
+        breakdown = pd.pivot_table(_df, index='Branch Name', columns='Completion Status',
                                    aggfunc='size', fill_value=0).reset_index()
         
         # Reorder columns logically
-        bucket_order = ['Not Started', '10% Completed', '20% Completed', '30% Completed', 
-                       '40% Completed', '50% Completed', '60% Completed', '70% Completed', 
-                       '80% Completed', 'Completed']
-        existing_buckets = [b for b in bucket_order if b in breakdown.columns]
-        breakdown = breakdown[['Branch Name'] + existing_buckets]
+        status_order = ['Not Started', 'Started', 'Completed']
+        existing_status = [s for s in status_order if s in breakdown.columns]
+        breakdown = breakdown[['Branch Name'] + existing_status]
         
         # Add Grand Total row
         grand_total = breakdown.select_dtypes(include='number').sum()
@@ -410,13 +420,35 @@ elif data_mode == "course":
         
         # Master Student Report
         master_report = _df.copy()
-        master_report['First Name'] = master_report['First Name'].fillna('')
-        master_report['Last Name'] = master_report['Last Name'].fillna('')
-        master_report['Full Name'] = master_report['First Name'] + ' ' + master_report['Last Name']
+        
+        # Handle name columns safely - check what exists
+        if 'First Name' in master_report.columns and 'Last Name' in master_report.columns:
+            master_report['First Name'] = master_report['First Name'].fillna('')
+            master_report['Last Name'] = master_report['Last Name'].fillna('')
+            master_report['Full Name'] = (master_report['First Name'].astype(str) + ' ' + master_report['Last Name'].astype(str)).str.strip()
+        elif 'Full Name' in master_report.columns:
+            master_report['Full Name'] = master_report['Full Name'].fillna('').astype(str)
+        else:
+            # Try to find any name-like column
+            name_col = None
+            for col in master_report.columns:
+                if 'name' in col.lower() and 'branch' not in col.lower():
+                    name_col = col
+                    break
+            if name_col:
+                master_report['Full Name'] = master_report[name_col].fillna('').astype(str)
+            else:
+                master_report['Full Name'] = 'N/A'
+        
         master_report['S No.'] = range(1, len(master_report) + 1)
         
-        base_cols = ['S No.', 'Full Name', 'Email', 'Branch Name', 'Registration Number',
-                    'Courses Started', 'Courses Completed']
+        # Build base columns dynamically based on what exists
+        base_cols = ['S No.', 'Full Name']
+        optional_cols = ['Email', 'Branch Name', 'Registration Number', 'Courses Started', 'Courses Completed']
+        for col in optional_cols:
+            if col in master_report.columns:
+                base_cols.append(col)
+        
         valid_top_k = [col for col in top_k_courses if col in master_report.columns]
         master_report = master_report[[c for c in base_cols + valid_top_k if c in master_report.columns]]
         
@@ -434,11 +466,12 @@ elif data_mode == "course":
             completed_summary.to_excel(writer, sheet_name='Course Completed Summary', index=False)
             
             # Individual course sheets with branch-wise completion breakdown
-            for course_col in top_k_courses:
-                # Create sheet name from course name (replace spaces with underscores, limit to 31 chars)
-                sheet_name = course_col.replace(' ', '_')[:31]
-                course_breakdown = create_course_breakdown(_df, course_col)
-                course_breakdown.to_excel(writer, sheet_name=sheet_name, index=False)
+            if 'Branch Name' in _df.columns:
+                for course_col in top_k_courses:
+                    # Create sheet name from course name (limit to 31 chars for Excel)
+                    sheet_name = course_col.replace(' ', '_')[:31]
+                    course_breakdown = create_course_breakdown(_df, course_col)
+                    course_breakdown.to_excel(writer, sheet_name=sheet_name, index=False)
         
         return output.getvalue()
     
@@ -451,6 +484,7 @@ elif data_mode == "course":
     
     # User Input
     st.subheader("1. Select Top 'k' Courses")
+    st.caption("Courses ranked by enrollment (≥10%). Status: Not Started (<10%), Started (10-89%), Completed (≥90%)")
     k = st.number_input("Select 'k':", min_value=1, max_value=50, value=5, step=1)
     top_k_courses = get_top_k_courses(df, course_columns, k)
     st.info(f"Top {k} Courses: **{', '.join(top_k_courses[:3])}**...")
@@ -477,7 +511,7 @@ elif data_mode == "course":
     tab1, tab2 = st.tabs(["**Course Started**", "**Course Completed**"])
     
     with tab1:
-        st.header("Course Started Status")
+        st.header("Course Started Status (≥10%)")
         
         # For chart, exclude Grand Total row
         chart_df = started_summary[started_summary['Branch Name'] != 'Grand Total'].copy()
@@ -495,7 +529,7 @@ elif data_mode == "course":
         st.dataframe(started_summary, use_container_width=True)
     
     with tab2:
-        st.header("Course Completed Status")
+        st.header("Course Completed Status (≥90%)")
         
         # For chart, exclude Grand Total row
         chart_df = completed_summary[completed_summary['Branch Name'] != 'Grand Total'].copy()

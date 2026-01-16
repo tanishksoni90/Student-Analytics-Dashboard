@@ -126,10 +126,22 @@ def load_course_data(uploaded_file):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         
-        if 'Courses Started' in df.columns:
-            df['Courses Started'] = df['Courses Started'].astype(int)
-        if 'Courses Completed' in df.columns:
-            df['Courses Completed'] = df['Courses Completed'].astype(int)
+        # Get course columns first for recalculation
+        course_cols = []
+        if 'Overall Completion %' in df.columns:
+            idx = df.columns.get_loc('Overall Completion %')
+            course_cols = df.columns[idx + 1:].tolist()
+        else:
+            course_cols = df.columns[11:].tolist()
+        
+        # Convert course columns to numeric
+        for col in course_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
+        # Recalculate Courses Started (>=10%) and Courses Completed (>=90%)
+        if course_cols:
+            df['Courses Started'] = (df[course_cols] >= 10).sum(axis=1).astype(int)
+            df['Courses Completed'] = (df[course_cols] >= 90).sum(axis=1).astype(int)
         
         # Get course columns (columns after standard metadata)
         course_columns = []
@@ -139,6 +151,15 @@ def load_course_data(uploaded_file):
         else:
             # Fallback: assume columns after index 11 are courses
             course_columns = df.columns[11:].tolist()
+        
+        # Convert course columns to numeric
+        for col in course_columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        
+        # Recalculate Courses Started (>=10%) and Courses Completed (>=90%)
+        if course_columns:
+            df['Courses Started'] = (df[course_columns] >= 10).sum(axis=1).astype(int)
+            df['Courses Completed'] = (df[course_columns] >= 90).sum(axis=1).astype(int)
         
         return df, course_columns
         

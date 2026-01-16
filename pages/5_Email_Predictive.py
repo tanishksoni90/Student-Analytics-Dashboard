@@ -756,10 +756,10 @@ elif data_mode == "course":
         student_branch = student_data['Branch Name']
         
         student_courses = student_data[_course_columns]
-        started_courses = set(student_courses[student_courses > 0].index)
+        started_courses = set(student_courses[student_courses >= 10].index)  # >=10% as started
         
         branch_df = _df[_df['Branch Name'] == student_branch]
-        branch_enrollment = (branch_df[_course_columns] > 0).sum().sort_values(ascending=False)
+        branch_enrollment = (branch_df[_course_columns] >= 10).sum().sort_values(ascending=False)  # >=10% as enrolled
         top_branch_courses = set(branch_enrollment.head(top_n).index)
         
         recommendations = list(top_branch_courses - started_courses)
@@ -788,8 +788,17 @@ elif data_mode == "course":
             st.subheader(f"Found {len(at_risk_df)} students")
             
             if not at_risk_df.empty:
-                display_cols = ['First Name', 'Last Name', 'Registration Number',
-                               'Branch Name', 'Courses Started', 'Courses Completed', 'Overall Completion %']
+                # Build display columns dynamically based on what exists
+                display_cols = []
+                if 'First Name' in at_risk_df.columns:
+                    display_cols.extend(['First Name', 'Last Name'])
+                elif 'Full Name' in at_risk_df.columns:
+                    display_cols.append('Full Name')
+                
+                for col in ['Registration Number', 'Branch Name', 'Courses Started', 'Courses Completed', 'Overall Completion %']:
+                    if col in at_risk_df.columns:
+                        display_cols.append(col)
+                
                 display_cols = [c for c in display_cols if c in at_risk_df.columns]
                 
                 sorted_df = at_risk_df[display_cols].sort_values('Overall Completion %', ascending=True)
@@ -819,8 +828,20 @@ elif data_mode == "course":
         if selected_reg:
             student_data = df[df['Registration Number'] == selected_reg].iloc[0]
             
+            # Get student name - handle different column formats
+            if 'First Name' in df.columns and 'Last Name' in df.columns:
+                student_name = f"{student_data.get('First Name', '')} {student_data.get('Last Name', '')}"
+            elif 'Full Name' in df.columns:
+                student_name = student_data.get('Full Name', 'N/A')
+            else:
+                student_name = 'N/A'
+                for col in df.columns:
+                    if 'name' in col.lower() and col.lower() not in ['branch name']:
+                        student_name = student_data.get(col, 'N/A')
+                        break
+            
             col1, col2, col3 = st.columns(3)
-            col1.info(f"**Name:** {student_data.get('First Name', '')} {student_data.get('Last Name', '')}")
+            col1.info(f"**Name:** {student_name}")
             col2.info(f"**Branch:** {student_data.get('Branch Name', 'N/A')}")
             col3.info(f"**Started:** {student_data.get('Courses Started', 0)} courses")
             

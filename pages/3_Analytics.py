@@ -163,21 +163,21 @@ elif data_mode == "course":
         st.error("No course columns detected in the data.")
         st.stop()
     
-    # Calculate course stats
+    # Calculate course stats with new thresholds: >=10% started, >=90% completed
     @st.cache_data
     def calculate_course_stats(_df, _course_columns):
         stats = []
         for course in _course_columns:
             course_data = pd.to_numeric(_df[course], errors='coerce').fillna(0)
-            enrolled = (course_data > 0).sum()
-            completed = (course_data == 100).sum()
+            enrolled = (course_data >= 10).sum()  # >=10% considered as started/enrolled
+            completed = (course_data >= 90).sum()  # >=90% considered as completed
             
             stats.append({
                 'Course Name': course,
                 'Total Enrollment': enrolled,
                 'Total Completed': completed,
                 'Completion Rate (%)': (completed / enrolled * 100) if enrolled > 0 else 0,
-                'Average Completion %': course_data[course_data > 0].mean() if enrolled > 0 else 0
+                'Average Completion %': course_data[course_data >= 10].mean() if enrolled > 0 else 0
             })
         return pd.DataFrame(stats)
     
@@ -214,14 +214,15 @@ elif data_mode == "course":
             course_data = all_course_stats[all_course_stats['Course Name'] == selected_course].iloc[0]
             
             st.subheader(f"Metrics for: **{selected_course}**")
+            st.caption("Enrolled: ≥10% | Completed: ≥90%")
             col1, col2, col3 = st.columns(3)
-            col1.metric("Total Enrollment", int(course_data['Total Enrollment']))
-            col2.metric("Completion Rate", f"{course_data['Completion Rate (%)']:.2f}%")
+            col1.metric("Total Enrollment (≥10%)", int(course_data['Total Enrollment']))
+            col2.metric("Completion Rate (≥90%)", f"{course_data['Completion Rate (%)']:.2f}%")
             col3.metric("Avg Completion (enrolled)", f"{course_data['Average Completion %']:.2f}%")
             
             if 'Branch Name' in df.columns and course_data['Total Enrollment'] > 0:
-                st.subheader("Enrollment by Branch")
-                enrolled_df = df[df[selected_course] > 0]
+                st.subheader("Enrollment by Branch (≥10%)")
+                enrolled_df = df[df[selected_course] >= 10]  # >=10% as enrolled
                 branch_counts = enrolled_df['Branch Name'].value_counts().reset_index()
                 branch_counts.columns = ['Branch Name', 'Student Count']
                 
@@ -254,11 +255,11 @@ elif data_mode == "course":
     
     with tab4:
         st.header("Course Co-Enrollment Heatmap")
-        st.write("Shows which courses are most frequently taken together.")
+        st.write("Shows which courses are most frequently taken together (≥10% enrollment).")
         st.info("Only courses with > 10 students are included.")
         
-        # Calculate co-enrollment
-        enrolled_df = (df[course_columns] > 0).astype(int)
+        # Calculate co-enrollment (>=10% as enrolled)
+        enrolled_df = (df[course_columns] >= 10).astype(int)
         popular_courses = enrolled_df.sum()[enrolled_df.sum() > 10].index.tolist()
         
         if len(popular_courses) > 1:
