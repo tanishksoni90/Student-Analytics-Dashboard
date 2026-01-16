@@ -415,7 +415,7 @@ elif data_mode == "course":
         return breakdown
     
     def create_full_student_report(_df, top_k_courses):
-        """Generate Full Student Report with all sheets like the sample file"""
+        """Generate Full Student Report with all tables in a single sheet"""
         output = io.BytesIO()
         
         # Master Student Report
@@ -455,23 +455,48 @@ elif data_mode == "course":
         # Summary tables
         started_summary, completed_summary = create_summary_tables(_df, top_k_courses)
         
+        # Create single sheet with all data
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # Sheet 1: Master Student Report
-            master_report.to_excel(writer, sheet_name='Master Student Report', index=False)
+            current_row = 0
+            sheet_name = 'Full Report'
             
-            # Sheet 2: Course Started Summary
-            started_summary.to_excel(writer, sheet_name='Course Started Summary', index=False)
+            # Section 1: Master Student Report
+            title_df = pd.DataFrame({'': ['MASTER STUDENT REPORT']})
+            title_df.to_excel(writer, sheet_name=sheet_name, startrow=current_row, index=False, header=False)
+            current_row += 1
             
-            # Sheet 3: Course Completed Summary
-            completed_summary.to_excel(writer, sheet_name='Course Completed Summary', index=False)
+            master_report.to_excel(writer, sheet_name=sheet_name, startrow=current_row, index=False)
+            current_row += len(master_report) + 2  # +1 for header, +1 for spacing
             
-            # Individual course sheets with branch-wise completion breakdown
+            # Section 2: Course Started Summary
+            current_row += 1  # Extra spacing
+            title_df = pd.DataFrame({'': ['COURSE STARTED SUMMARY']})
+            title_df.to_excel(writer, sheet_name=sheet_name, startrow=current_row, index=False, header=False)
+            current_row += 1
+            
+            started_summary.to_excel(writer, sheet_name=sheet_name, startrow=current_row, index=False)
+            current_row += len(started_summary) + 2
+            
+            # Section 3: Course Completed Summary
+            current_row += 1
+            title_df = pd.DataFrame({'': ['COURSE COMPLETED SUMMARY']})
+            title_df.to_excel(writer, sheet_name=sheet_name, startrow=current_row, index=False, header=False)
+            current_row += 1
+            
+            completed_summary.to_excel(writer, sheet_name=sheet_name, startrow=current_row, index=False)
+            current_row += len(completed_summary) + 2
+            
+            # Section 4+: Individual course breakdowns
             if 'Branch Name' in _df.columns:
                 for course_col in top_k_courses:
-                    # Create sheet name from course name (limit to 31 chars for Excel)
-                    sheet_name = course_col.replace(' ', '_')[:31]
+                    current_row += 1
+                    title_df = pd.DataFrame({'': [f'COURSE: {course_col}']})
+                    title_df.to_excel(writer, sheet_name=sheet_name, startrow=current_row, index=False, header=False)
+                    current_row += 1
+                    
                     course_breakdown = create_course_breakdown(_df, course_col)
-                    course_breakdown.to_excel(writer, sheet_name=sheet_name, index=False)
+                    course_breakdown.to_excel(writer, sheet_name=sheet_name, startrow=current_row, index=False)
+                    current_row += len(course_breakdown) + 2
         
         return output.getvalue()
     
